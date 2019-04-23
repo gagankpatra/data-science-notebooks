@@ -1,0 +1,36 @@
+--Metadata Queries
+
+--5.1. Listing Tables in a Schema
+select table_name from all_tables where owner = 'sdsd';
+
+--5.2. Listing a Table’s Columns
+select * from all_tab_columns where owner = 'sdsd' and table_name = 'EMP';
+
+--5.3. Listing Indexed Columns for a Table
+--You want list indexes, their columns, and the column position (if available) in the index for a given table.
+	select table_name, index_name, column_name, column_position
+	  from sys.all_ind_columns
+	 where table_name  = 'EMP'
+	   and table_owner = 'sdsd';
+       
+--5.4. Listing Constraints on a Table
+--Use a constraint to define an integrity constraint(a rule that restricts the values in a database). 
+--Oracle Database lets you create six types of constraints and lets you declare them in two ways.
+--1) A NOT NULL constraint prohibits a database value from being null.
+--2) A unique constraint prohibits multiple rows from having the same value in the same column or combination of columns but allows some values to be null.
+--3) A primary key constraint combines a NOT NULL constraint and a unique constraint in a single declaration. That is, it prohibits multiple rows from having the same value in the same column or combination of columns and prohibits values from being null.
+--4) A foreign key constraint requires values in one table to match values in another table.
+--5) A check constraint requires a value in the database to comply with a specified condition.
+--6) A REF column by definition references an object in another object type or in a relational table. A REF constraint lets you further describe the relationship between the REF column and the object it references.
+
+--You can define constraints syntactically in two ways:
+--As part of the definition of an individual column or attribute. This is called inline specification.
+--As part of the table definition. This is called out-of-line specification.
+
+select a.table_name,a.constraint_name,b.column_name,a.constraint_type from all_constraints a, all_cons_columns b
+where a.table_name      = 'EMP'
+and a.owner           = 'sdsd'
+and a.table_name      = b.table_name
+and a.owner           = b.owner
+and a.constraint_name = b.constraint_name;
+
