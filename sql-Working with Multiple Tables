@@ -1,0 +1,161 @@
+--Working with Multiple Tables
+
+--3.1. Stacking One Rowset atop Another
+--You want to return data stored in more than one table, conceptually stacking one result set atop the other. 
+--The tables do not necessarily have a common key, but their columns do have the same data types. 
+select deptno from emp;
+select deptno from dept;
+select deptno from emp union all select deptno from dept;--without duplicates
+select deptno from emp union select deptno from dept;--duplicates
+select distinct deptno from ( select deptno from emp union all select deptno from dept );--same as union 
+
+--3.2. Combining Related Rows
+select e.ename, d.loc from emp e, dept d where e.deptno = d.deptno and e.deptno = 10;
+--using inner keyword
+select e.ename, d.loc from emp e inner join dept d on (e.deptno = d.deptno) where e.deptno = 10;
+
+--3.3. Finding Rows in Common Between Two Tables
+
+create view V as select ename,job,sal from emp where job = 'CLERK';
+drop view V;
+select * from V;
+select e.empno,e.ename,e.job,e.sal,e.deptno from emp e, V where e.ename = v.ename and e.job = v.job and e.sal = v.sal;
+--USING JOIN KEYWORD
+select e.empno,e.Ename,e.job,e.sal,e.deptno from emp e join V on (e.ename = v.ename and e.job = v.job and e.sal = v.sal);
+
+select empno,ename,job,sal,deptno from emp where (ename,job,sal) in (select ename,job,sal from emp intersect select ename,job,sal from V );
+
+--3.4. Retrieving Values from One Table That Do Not Exist in Another
+select deptno from dept minus select deptno from emp;
+--using subqueries
+select deptno from dept where deptno not in (select deptno from emp);
+
+
+create table new_dept(deptno integer);
+
+insert into new_deptvalues (10);
+insert into new_dept values (50);
+insert into new_dept values (null);
+
+select * from dept where deptno not in (select deptno from new_dept);
+--DEPTNOs 20, 30, and 40 are not in table NEW_DEPT, yet were not returned by the query. Why? The reason is the NULL value present in table NEW_DEPT.
+--In SQL, “TRUE or NULL” is TRUE, but “FALSE or NULL” is NULL!
+
+select d.deptno from dept d where not exists (select 1 from emp e where d.deptno = e.deptno);
+
+--3.5. Retrieving Rows from One Table That Do Not Correspond to Rows in Another
+--Return all rows from one table along with rows from another that may or may not have a match on the common column. Then, keep only those rows with no match.
+
+select d.* from dept d left outer join emp e on (d.deptno = e.deptno) where e.deptno is null;-- This sort of operation is sometimes called an anti-join.
+
+--3.6. Adding Joins to a Query Without Interfering with Other Joins
+select * from emp_bonus;
+--you want to return all employees, the location of the department in which they work, and the date they received a bonus
+select e.ename, d.loc,eb.received from emp e, dept d, emp_bonus eb where e.deptno=d.deptno and e.empno=eb.empno;
+
+select e.ename, d.loc, eb.received from emp e join dept d on (e.deptno=d.deptno) left join emp_bonus eb on (e.empno=eb.empno) order by 2;--return all employees
+select e.ename, d.loc,(select eb.received from emp_bonus eb where eb.empno=e.empno) as received from emp e, dept d where e.deptno=d.deptno order by 2;--scalar subquery (a subquery placed in the SELECT list) to mimic an outer join
+
+--3.7. Determining Whether Two Tables Have the Same Data
+
+create view V1 as select * from emp where deptno != 10 union all select * from emp where ename = 'WARD';
+select * from V1;
+
+--You want to know if two tables or views have the same data (cardinality and values).You want to determine whether or not above view has exactly the same data as table EMP
+--Only in Oracle(minus)
+(
+select empno,ename,job,mgr,hiredate,sal,comm,deptno,count(*) as cnt from  V1 group by empno,ename,job,mgr,hiredate,sal,comm,deptno
+minus
+select empno,ename,job,mgr,hiredate,sal,comm,deptno,count(*) as cnt from emp group by empno,ename,job,mgr,hiredate,sal,comm,deptno --7521	WARD	SALESMAN	7698	22-FEB-81	1250	500	30	1
+)
+union all
+(
+select empno,ename,job,mgr,hiredate,sal,comm,deptno,count(*) as cnt from emp group by empno,ename,job,mgr,hiredate,sal,comm,deptno
+minus
+select empno,ename,job,mgr,hiredate,sal,comm,deptno,count(*) as cnt from v1 group by empno,ename,job,mgr,hiredate,sal,comm,deptno
+);
+
+--Use a correlated subquery and UNION ALL to find the rows in view V and not in table EMP combined with the rows in table EMP and not in view V
+select *
+from 
+(select e.empno,e.ename,e.job,e.mgr,e.hiredate,e.sal,e.comm,e.deptno, count(*) as cnt from emp e group by empno,ename,job,mgr,hiredate,sal,comm,deptno) e
+where not exists (select null from (select v1.empno,v1.ename,v1.job,v1.mgr,v1.hiredate,v1.sal,v1.comm,v1.deptno, count(*) as cnt from v1 group by empno,ename,job,mgr,hiredate,sal,comm,deptno) v1
+where v1.empno     = e.empno
+and v1.ename    = e.ename
+and v1.job      = e.job
+and coalesce(v1.mgr,0) = coalesce(e.mgr,0)
+and v1.hiredate = e.hiredate
+and v1.sal      = e.sal
+and v1.deptno   = e.deptno
+and v1.cnt      = e.cnt
+and coalesce(v1.comm,0) = coalesce(e.comm,0)
+)
+union all
+select *
+from (select v1.empno,v1.ename,v1.job,v1.mgr,v1.hiredate,v1.sal,v1.comm,v1.deptno, count(*) as cnt from v1 group by empno,ename,job,mgr,hiredate,sal,comm,deptno) v1
+where not exists (select null from ( select e.empno,e.ename,e.job,e.mgr,e.hiredate, e.sal,e.comm,e.deptno, count(*) as cnt from emp e group by empno,ename,job,mgr,hiredate,sal,comm,deptno) e
+where v1.empno     = e.empno
+and v1.ename     = e.ename
+and v1.job       = e.job
+and coalesce(v1.mgr,0) = coalesce(e.mgr,0)
+and v1.hiredate  = e.hiredate
+and v1.sal       = e.sal
+and v1.deptno    = e.deptno
+and v1.cnt       = e.cnt
+and coalesce(v1.comm,0) = coalesce(e.comm,0)
+);
+
+--3.8. Identifying and Avoiding Cartesian Products
+--You want to return the name of each employee in department 10 along with the location of the department
+select e.ename, d.loc,d.deptno from emp e, dept d where e.deptno = 10 and d.deptno = e.deptno;
+
+--3.9. Performing Joins when Using Aggregates
+	select * from emp_bonus
+    
+    SELECT * FROM EMP WHERE DEPTNO = 10;
+    
+7782	CLARK	MANAGER	7839	09-JUN-81	2450		10
+7839	KING	PRESIDENT		17-NOV-81	5000		10
+7934	MILLER	CLERK	7782	23-JAN-82	1300		10
+
+	EMPNO RECEIVED          TYPE
+	----- ----------- ----------
+	 7934 17-MAR-2005          1
+	 7934 15-FEB-2005          2
+	 7839 15-FEB-2005          3
+	 7782 15-FEB-2005          1
+--distinct keyword is important
+select deptno, sum(distinct sal) as total_sal, sum(bonus) as total_bonus from (select e.empno,e.ename,e.sal,e.deptno,e.sal*case when eb.type = 1 then .1 when eb.type = 2 then .2 else .3 end as bonus from emp e, emp_bonus eb where e.empno  = eb.empno and e.deptno = 20) x group by deptno;
+
+--oracle
+select distinct deptno, total_sal, total_bonus from (select e.empno, e.ename, sum(distinct e.sal) over (partition by e.deptno) as total_sal, e.deptno,sum(e.sal*case when eb.type = 1 then .1 when eb.type = 2 then .2 else .3 end) over (partition by e.deptno) as total_bonus from emp e, emp_bonus eb where e.empno = eb.empno and e.deptno = 20) x
+
+--3.10. Performing Outer Joins when Using Aggregates
+select * from emp_bonus;--7934
+	select * from emp_bonus
+
+	     EMPNO RECEIVED          TYPE
+	---------- ----------- ----------
+	      7934 17-MAR-2005          1
+	      7934 15-FEB-2005          2
+describe emp_bonus;
+truncate table emp_bonus;
+insert into emp_bonus (EMPNO,RECEIVED,TYPE) values (7934,'15-FEB-2005',2);
+
+select deptno, sum( sal) as total_sal, sum(bonus) as total_bonus from (select e.empno,e.ename,e.sal,e.deptno,e.sal*case when eb.type = 1 then .1 when eb.type = 2 then .2 else .3 end as bonus from emp e, emp_bonus eb where e.empno  = eb.empno and e.deptno = 10) x group by deptno;
+
+SELECT SUM(SAL) FROM EMP WHERE DEPTNO =10;--8750
+
+select deptno, sum(DISTINCT sal) as total_sal, sum(bonus) as total_bonus from (select e.empno,e.ename,e.sal,e.deptno,e.sal*case when eb.type = 1 then .1 when eb.type = 2 then .2 else .3 end as bonus from emp e LEFT OUTER JOIN  emp_bonus eb ON e.empno  = eb.empno WHERE  e.deptno = 10) x group by deptno;
+
+
+--3.11. Returning Missing Data from Multiple Tables
+--returns all DEPTNOs and DNAMEs from DEPT along with the names of all the employees in each department (if there is an employee in a particular department)
+select d.deptno,d.dname,e.ename,e.deptno from dept d left outer join emp e on d.deptno = e.deptno;
+insert into emp (empno,ename,job,mgr,hiredate,sal,comm,deptno) select 1111,'YODA','JEDI',null,hiredate,sal,comm,null from emp where ename = 'KING'
+--SOLUTION
+select d.deptno,d.dname,e.ename from dept d FULL outer join emp e on d.deptno = e.deptno;
+
+--3.12. Using NULLs in Operations and Comparisons
+--Use a function such as COALESCE to transform the NULL value into a real value that can be used in standard evaluation
+select ename,comm from emp where coalesce(comm,0) < ( select comm from emp where ename = 'WARD' )
