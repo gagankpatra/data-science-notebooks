@@ -1,0 +1,126 @@
+--Chapter 4. Inserting, Updating, Deleting
+
+--4.1. Inserting a New Record
+insert into dept (deptno,dname,loc) values (50,'PROGRAMMING','BALTIMORE');
+
+--4.2. Inserting Default Values
+create table D (id integer default 0);
+insert into D values (default);
+select * from D;
+drop table D;
+
+--4.3. Overriding a Default Value with NULL
+create table D1 (id integer default 0, foo VARCHAR(10));
+insert into d1 (id, foo) values (null, 'Brighten');
+
+--4.4. Copying Rows from One Table into Another
+insert into dept_east (deptno,dname,loc) select deptno,dname,loc from dept where loc in ( 'NEW YORK','BOSTON' );
+
+--4.5. Copying a Table Definition
+--without data
+CREATE TABLE dept_east AS (SELECT * FROM dept where 1=0); -- the expression “1 = 0” in the predicate of the query causes no rows to be returned
+insert into dept_east (deptno,dname,loc) select deptno,dname,loc from dept where loc in ( 'NEW YORK','BOSTON' );
+--with data
+CREATE TABLE dept_east AS (SELECT * FROM dept); 
+
+--4.6. Inserting into Multiple Tables at Once
+CREATE TABLE dept_east AS (SELECT * FROM dept where 1=0);
+CREATE TABLE dept_mid AS (SELECT * FROM dept where 1=0);
+CREATE TABLE dept_west AS (SELECT * FROM dept where 1=0);
+
+insert all
+when loc in ('NEW YORK','BOSTON') then
+into dept_east (deptno,dname,loc) values (deptno,dname,loc)
+when loc = 'CHICAGO' then
+into dept_mid (deptno,dname,loc) values (deptno,dname,loc)
+else
+into dept_west (deptno,dname,loc) values (deptno,dname,loc)
+select deptno,dname,loc
+from dept
+
+--4.7. Blocking Inserts to Certain Columns
+create view new_emps as select empno, ename, job from emp;
+
+--4.8. Modifying Records in a Table
+update emp set sal = sal*1.10 where deptno = 20;
+
+--4.9. Updating when Corresponding Rows Exist
+update emp set sal=sal*1.20 where empno in ( select empno from emp_bonus );
+
+--4.10. Updating with Values from Another Table
+describe emp;
+
+create table new_sal (DEPTNO NUMBER,SAL NUMBER);
+insert into new_sal (DEPTNO,SAL) values (10,4000);
+
+select deptno,ename,sal,comm from emp order by 1;
+
+update emp e set (e.sal,e.comm) = (select ns.sal, ns.sal/2 from new_sal ns where ns.deptno=e.deptno) where exists ( select *from new_sal ns where ns.deptno = e.deptno );
+
+--4.11. Merging Records -- ONLY ORACLE
+CREATE TABLE emp_commission AS (SELECT * FROM EMP WHERE 1=0);
+
+merge into emp_commission ec
+using (select * from emp) emp on (ec.empno=emp.empno)
+when matched then 
+update set ec.comm = 1000 
+delete where (sal < 2000)
+when not matched then 
+insert (ec.empno,ec.ename,ec.deptno,ec.comm) values (emp.empno,emp.ename,emp.deptno,emp.comm)
+
+--4.12. Deleting Specific Records
+delete from emp where deptno = 10
+
+--4.13. Deleting a Single Record
+delete from emp where empno = 7782
+
+--4.14. Deleting All Records from a Table
+delete from emp
+
+--4.15. Deleting Referential Integrity Violations
+delete from emp where deptno not in (select deptno from dept);
+--alternate sol
+delete from emp where not exists (select * from dept where dept.deptno = emp.deptno );
+
+--4.16. Deleting Duplicate Records
+drop table dupes;
+
+	create table dupes (id integer, name varchar(10));
+	insert into dupes values (1, 'NAPOLEON');
+	insert into dupes values (2, 'DYNAMITE');
+	insert into dupes values (3, 'DYNAMITE');
+	insert into dupes values (4, 'SHE SELLS');
+	insert into dupes values (5, 'SEA SHELLS');
+	insert into dupes values (6, 'SEA SHELLS');
+	insert into dupes values (7, 'SEA SHELLS');
+    commit;
+    
+    select * from dupes;
+    
+delete from dupes where id not in ( select min(id) from dupes group by name );
+
+DELETE FROM dupes A
+WHERE A.rowid >
+ANY (SELECT B.rowid
+FROM dupes B
+WHERE A.id= B.id
+);
+
+delete from dupes where rowid in (select rid from(select rowid rid, row_number() over (partition by id order by rowid desc ) rn from dupes) where rn>1);
+
+--4.17. Deleting Records Referenced from Another Table
+
+create table dept_accidents ( deptno integer,accident_name  varchar(20) );
+
+	insert into dept_accidents values (10,'BROKEN FOOT');
+	insert into dept_accidents values (10,'FLESH WOUND');
+	insert into dept_accidents values (20,'FIRE');
+	insert into dept_accidents values (20,'FIRE');
+	insert into dept_accidents values (20,'FLOOD');
+	insert into dept_accidents values (30,'BRUISED GLUTE');
+    commit;
+    
+
+select deptno from dept_accidents group by deptno having count(*) >= 3;
+
+delete from emp where deptno = ( select deptno from dept_accidents group by deptno having count(*) >= 3 );
